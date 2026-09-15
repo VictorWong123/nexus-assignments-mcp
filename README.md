@@ -1,6 +1,20 @@
 # Union Nexus MCP
 
-Read-only MCP server for asking Codex or ChatGPT about Union Nexus courses, assignments, submission status, course content, and text/PDF attachments.
+Read-only MCP server for asking Codex or ChatGPT about Union Nexus courses, assignments, grades, calendar events, discussions, quizzes, course content, and text/PDF attachments.
+
+## Tools
+
+- `list_courses` lists enrolled courses.
+- `list_assignments` lists native Moodle assignments and deadlines.
+- `assignment_status` returns the current user's submission and grading status.
+- `course_contents` lists sections and activities, including access restrictions, activity dates, and completion data.
+- `read_file` reads supported Nexus text and PDF attachments.
+- `grade_overview` lists Moodle's displayed course totals for the current user.
+- `course_grades` lists the current user's visible grade items, categories, status flags, and feedback.
+- `calendar_events` lists visible course, personal, and site events in a timezone-aware interval of at most 90 days.
+- `list_discussions` lists course forums or a forum's discussions in pages of 20.
+- `read_discussion` reads a discussion and its reply tree without marking posts read.
+- `list_quizzes` lists quiz availability and settings without starting or inspecting attempts.
 
 ## Credentials
 
@@ -43,7 +57,9 @@ ChatGPT needs a remotely reachable MCP endpoint. Use a managed MCP host that can
 
 ## Safety and limits
 
-All five tools are read-only. There is no generic Moodle API tool and no submission, upload, enrollment, or grading operation. File reads allow only HTTPS URLs on `nexus.union.edu` under Moodle's file paths, refuse redirects, and cap downloads at 10 MB. Text and PDFs are supported; PDF extraction is capped at 50 pages, 500,000 characters, and 8 MB per decompressed stream. `list_assignments` covers native Moodle assignments; use `course_contents` too because linked services and resources can contain coursework.
+All 11 tools are read-only and operate as the token's current user. There is no generic Moodle API tool and no submission, upload, enrollment, grading, forum tracking, or quiz-attempt operation. File reads allow only HTTPS URLs on `nexus.union.edu` under Moodle's file paths, refuse redirects, and cap downloads at 10 MB. Text and PDFs are supported; PDF extraction is capped at 50 pages, 500,000 characters, and 8 MB per decompressed stream. Discussion lists return bounded summaries; full discussion text is capped and reports truncation explicitly.
+
+Moodle controls visibility and displayed grade totals. Missing or hidden grades stay missing; the connector does not calculate replacements. `calendar_events` excludes group-only events, so use assignment, quiz, and course-content tools before concluding there are no deadlines. Linked services and external coursework require their own integrations.
 
 Run the focused checks after installing dependencies:
 
