@@ -4,6 +4,19 @@ const LAUNCH_PATH = "/admin/tool/mobile/launch.php";
 const API_URL = `${SITE}/webservice/rest/server.php`;
 const MAX_LAUNCH_HTML_CHARS = 1_000_000;
 const MAX_SITE_INFO_CHARS = 1_000_000;
+const MAX_ENCODED_PAYLOAD_CHARS = 4_096;
+const BLOCKED_LAUNCH_SCHEMES = new Set([
+  "about",
+  "chrome",
+  "chrome-extension",
+  "data",
+  "devtools",
+  "file",
+  "http",
+  "https",
+  "javascript",
+  "view-source",
+]);
 export const REQUIRED_FUNCTIONS = Object.freeze([
   "core_calendar_get_calendar_events",
   "core_course_get_contents",
@@ -171,12 +184,21 @@ export function extractLaunchUrl(html) {
 }
 
 export function parseLaunchPayload(launchUrl, passport) {
-  const prefix = "moodlemobile://token=";
-  if (typeof launchUrl !== "string" || !launchUrl.startsWith(prefix)) {
+  const prefix =
+    typeof launchUrl === "string"
+      ? /^([A-Za-z][A-Za-z0-9+.-]{0,63}):\/\/token=/.exec(launchUrl)
+      : null;
+  if (!prefix || BLOCKED_LAUNCH_SCHEMES.has(prefix[1].toLowerCase())) {
     throw connectionError("PAYLOAD_SCHEME");
   }
-  const encoded = launchUrl.slice(prefix.length);
-  if (!/^[A-Za-z0-9+/]+={0,2}$/.test(encoded) || encoded.length % 4 !== 0) {
+  const encoded = launchUrl.slice(prefix[0].length);
+  const encodedMatch = /^[A-Za-z0-9+/]+={0,2}$/.exec(encoded);
+  if (
+    encoded.length > MAX_ENCODED_PAYLOAD_CHARS ||
+    !encodedMatch ||
+    encodedMatch[0] !== encoded ||
+    encoded.length % 4 !== 0
+  ) {
     throw connectionError("PAYLOAD_ENCODING");
   }
 

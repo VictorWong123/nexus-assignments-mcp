@@ -78,5 +78,5 @@ The proof may cause Nexus to reuse an existing Moodle mobile-app token or create
 Run its dependency-free checks with Node 20 or newer:
 
 ```sh
-node --test extension/test_login.mjs
+node --test extension/test_*.mjs
 ```

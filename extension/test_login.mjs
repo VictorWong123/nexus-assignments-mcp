@@ -13,8 +13,8 @@ import {
   validateToken,
 } from "./login.js";
 
-function launchPayload(passport, token = "a".repeat(32), site = SITE) {
-  return `moodlemobile://token=${btoa(`${md5(`${site}${passport}`)}:::${token}:::discard-me`)}`;
+function launchPayload(passport, token = "a".repeat(32), site = SITE, scheme = "moodlemobile") {
+  return `${scheme}://token=${btoa(`${md5(`${site}${passport}`)}:::${token}:::discard-me`)}`;
 }
 
 function hasCode(code) {
@@ -63,9 +63,61 @@ test("extracts one launch link and rejects missing or ambiguous responses", () =
   );
 });
 
-test("accepts the matching Moodle payload and rejects wrong site or passport", () => {
+test("accepts strict branded Moodle launch schemes and the matching payload", () => {
   const passport = "123456789012345678";
   assert.equal(parseLaunchPayload(launchPayload(passport), passport), "a".repeat(32));
+  assert.equal(
+    parseLaunchPayload(launchPayload(passport, "a".repeat(32), SITE, "openlms"), passport),
+    "a".repeat(32),
+  );
+  assert.equal(
+    parseLaunchPayload(launchPayload(passport, "a".repeat(32), SITE, "OPENLMS"), passport),
+    "a".repeat(32),
+  );
+});
+
+test("rejects unsafe schemes and anything outside the inert token envelope", () => {
+  const passport = "123456789012345678";
+  const encoded = btoa(`${md5(`${SITE}${passport}`)}:::${"a".repeat(32)}`);
+  for (const scheme of [
+    "http",
+    "https",
+    "file",
+    "data",
+    "javascript",
+    "about",
+    "chrome",
+    "chrome-extension",
+    "devtools",
+    "view-source",
+  ]) {
+    assert.throws(
+      () => parseLaunchPayload(`${scheme}://token=${encoded}`, passport),
+      hasCode("PAYLOAD_SCHEME"),
+    );
+  }
+  for (const value of [
+    `1openlms://token=${encoded}`,
+    `openlms://user@token=${encoded}`,
+  ]) {
+    assert.throws(() => parseLaunchPayload(value, passport), hasCode("PAYLOAD_SCHEME"));
+  }
+  for (const value of [
+    `openlms://token=${encoded}/path`,
+    `openlms://token=${encoded}?query=1`,
+    `openlms://token=${encoded}#fragment`,
+    `openlms://token=${encoded}\n`,
+  ]) {
+    assert.throws(() => parseLaunchPayload(value, passport), hasCode("PAYLOAD_ENCODING"));
+  }
+  assert.throws(
+    () => parseLaunchPayload(`openlms://token=${"A".repeat(4097)}`, passport),
+    hasCode("PAYLOAD_ENCODING"),
+  );
+});
+
+test("rejects malformed payload encoding and a wrong site or passport hash", () => {
+  const passport = "123456789012345678";
   assert.throws(
     () => parseLaunchPayload(launchPayload(passport, "a".repeat(32), "https://evil.example"), passport),
     hasCode("PAYLOAD_MISMATCH"),

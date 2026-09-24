@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { SITE, md5 } from "./login.js";
+import { REQUIRED_FUNCTIONS, SITE, md5 } from "./login.js";
 
 class FakeElement {
   constructor() {
@@ -22,12 +22,12 @@ class FakeElement {
   focus() {}
 }
 
-function launchResponse(url) {
+function launchResponse(url, scheme = "openlms") {
   const passport = new URL(url).searchParams.get("passport");
   const payload = btoa(`${md5(`${SITE}${passport}`)}:::${"a".repeat(32)}`);
   return {
     ok: true,
-    text: async () => `<a id="launchapp" href="moodlemobile://token=${payload}">Open</a>`,
+    text: async () => `<a id="launchapp" href="${scheme}://token=${payload}">Open</a>`,
   };
 }
 
@@ -71,4 +71,24 @@ test("connection UI reports the failing stage without exposing raw errors", asyn
     return call === 1 ? launchResponse(url) : { ok: true, text: async () => "not-json" };
   });
   assert.match(apiJson, /\[API_JSON\]/);
+});
+
+test("connection UI accepts a branded inert launch scheme after fixed Nexus API validation", async () => {
+  let call = 0;
+  const status = await runFailure("branded-success", async (url) => {
+    call += 1;
+    if (call === 1) return launchResponse(url, "OPENLMS");
+    return {
+      ok: true,
+      text: async () => JSON.stringify({
+        userid: 7,
+        fullname: "Student Example",
+        sitename: "Nexus",
+        siteurl: SITE,
+        functions: REQUIRED_FUNCTIONS.map((name) => ({ name })),
+      }),
+    };
+  });
+  assert.match(status, /^Connected as Student Example/);
+  assert.match(status, /All 12 required APIs are available/);
 });
