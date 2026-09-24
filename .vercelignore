@@ -9,3 +9,4 @@ credentials.json
 extension/
 test_*.py
 README.md
+RELEASE.md

@@ -3,7 +3,7 @@
   "framework": "fastapi",
   "functions": {
     "app.py": {
-      "excludeFiles": "{extension/**,test_*.py,README.md,.env,.env.*,credentials.json,.venv/**,.vercel/**}"
+      "excludeFiles": "{extension/**,test_*.py,README.md,RELEASE.md,.env,.env.*,credentials.json,.venv/**,.vercel/**}"
     }
   }
 }
