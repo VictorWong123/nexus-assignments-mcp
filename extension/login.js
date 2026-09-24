@@ -19,6 +19,19 @@ export const REQUIRED_FUNCTIONS = Object.freeze([
   "mod_quiz_get_quizzes_by_courses",
 ]);
 
+function connectionError(code, details = {}) {
+  const error = new Error("Nexus connection failed");
+  error.code = code;
+  Object.assign(error, details);
+  return error;
+}
+
+function responseStatus(response) {
+  return Number.isInteger(response?.status) && response.status >= 100 && response.status <= 599
+    ? response.status
+    : null;
+}
+
 function add32(a, b) {
   return (a + b) >>> 0;
 }
@@ -121,7 +134,7 @@ export function generatePassport(random = crypto) {
 }
 
 export function buildLaunchUrl(passport) {
-  if (!/^\d{18}$/.test(passport)) throw new Error("Invalid login attempt");
+  if (!/^\d{18}$/.test(passport)) throw connectionError("LOGIN_ATTEMPT");
   const url = new URL(LAUNCH_PATH, SITE);
   url.search = new URLSearchParams({
     service: "moodle_mobile_app",
@@ -137,7 +150,7 @@ function anchorAttributes(tag) {
   const pattern = /([^\s=/>]+)\s*=\s*(?:"([^"]*)"|'([^']*)')/g;
   for (const match of tag.matchAll(pattern)) {
     const name = match[1].toLowerCase();
-    if (attributes.has(name)) throw new Error("Invalid Nexus response");
+    if (attributes.has(name)) throw connectionError("LAUNCH_HTML");
     attributes.set(name, match[2] ?? match[3]);
   }
   return attributes;
@@ -145,25 +158,26 @@ function anchorAttributes(tag) {
 
 export function extractLaunchUrl(html) {
   if (typeof html !== "string" || html.length > MAX_LAUNCH_HTML_CHARS) {
-    throw new Error("Invalid Nexus response");
+    throw connectionError("LAUNCH_HTML");
   }
   const matches = [];
   for (const tag of html.match(/<a\b[^>]{0,4096}>/gi) ?? []) {
     const attributes = anchorAttributes(tag);
     if (attributes.get("id") === "launchapp") matches.push(attributes.get("href"));
   }
-  if (matches.length !== 1 || !matches[0]) throw new Error("Nexus login was not completed");
+  if (matches.length === 0 || !matches[0]) throw connectionError("LAUNCH_LINK_MISSING");
+  if (matches.length > 1) throw connectionError("LAUNCH_LINK_AMBIGUOUS");
   return matches[0];
 }
 
 export function parseLaunchPayload(launchUrl, passport) {
   const prefix = "moodlemobile://token=";
   if (typeof launchUrl !== "string" || !launchUrl.startsWith(prefix)) {
-    throw new Error("Invalid Nexus launch response");
+    throw connectionError("PAYLOAD_SCHEME");
   }
   const encoded = launchUrl.slice(prefix.length);
   if (!/^[A-Za-z0-9+/]+={0,2}$/.test(encoded) || encoded.length % 4 !== 0) {
-    throw new Error("Invalid Nexus launch response");
+    throw connectionError("PAYLOAD_ENCODING");
   }
 
   let decoded;
@@ -171,31 +185,35 @@ export function parseLaunchPayload(launchUrl, passport) {
     const bytes = Uint8Array.from(atob(encoded), (character) => character.charCodeAt(0));
     decoded = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
   } catch {
-    throw new Error("Invalid Nexus launch response");
+    throw connectionError("PAYLOAD_ENCODING");
   }
   const fields = decoded.split(":::");
-  if (fields.length < 2 || fields.length > 3) throw new Error("Invalid Nexus launch response");
+  if (fields.length < 2 || fields.length > 3) throw connectionError("PAYLOAD_ENCODING");
   const [siteHash, token] = fields;
   fields.fill("");
   decoded = "";
-  if (siteHash !== md5(`${SITE}${passport}`) || !/^[A-Za-z0-9]{16,128}$/.test(token)) {
-    throw new Error("Nexus response did not match this login attempt");
-  }
+  if (siteHash !== md5(`${SITE}${passport}`)) throw connectionError("PAYLOAD_MISMATCH");
+  if (!/^[A-Za-z0-9]{16,128}$/.test(token)) throw connectionError("PAYLOAD_ENCODING");
   return token;
 }
 
-async function readBoundedText(response, maximumBytes) {
+async function readBoundedText(response, maximumBytes, stage) {
   const declaredLength = Number(response.headers?.get?.("content-length"));
   if (Number.isFinite(declaredLength) && declaredLength > maximumBytes) {
     await response.body?.cancel?.();
-    throw new Error("Nexus response exceeded the size limit");
+    throw connectionError(`${stage}_SIZE`);
   }
   if (!response.body?.getReader) {
-    const text = await response.text();
-    if (new TextEncoder().encode(text).length > maximumBytes) {
-      throw new Error("Nexus response exceeded the size limit");
+    try {
+      const text = await response.text();
+      if (new TextEncoder().encode(text).length > maximumBytes) {
+        throw connectionError(`${stage}_SIZE`);
+      }
+      return text;
+    } catch (error) {
+      if (error?.code) throw error;
+      throw connectionError(`${stage}_BODY`);
     }
-    return text;
   }
 
   const reader = response.body.getReader();
@@ -209,26 +227,42 @@ async function readBoundedText(response, maximumBytes) {
       received += value.byteLength;
       if (received > maximumBytes) {
         await reader.cancel();
-        throw new Error("Nexus response exceeded the size limit");
+        throw connectionError(`${stage}_SIZE`);
       }
       text += decoder.decode(value, { stream: true });
     }
     return text + decoder.decode();
+  } catch (error) {
+    if (error?.code) throw error;
+    try {
+      await reader.cancel();
+    } catch {
+      // The response stream may already be closed.
+    }
+    throw connectionError(`${stage}_BODY`);
   } finally {
     reader.releaseLock();
   }
 }
 
 export async function fetchLaunchPage(passport, fetchImpl = fetch, signal) {
-  const response = await fetchImpl(buildLaunchUrl(passport), {
-    method: "GET",
-    credentials: "include",
-    redirect: "error",
-    cache: "no-store",
-    signal,
-  });
-  if (!response.ok) throw new Error("Nexus login check failed");
-  const html = await readBoundedText(response, MAX_LAUNCH_HTML_CHARS);
+  let response;
+  try {
+    response = await fetchImpl(buildLaunchUrl(passport), {
+      method: "GET",
+      credentials: "include",
+      redirect: "error",
+      cache: "no-store",
+      signal,
+    });
+  } catch (error) {
+    if (error?.name === "AbortError") throw error;
+    throw connectionError("LAUNCH_FETCH");
+  }
+  if (!response.ok) {
+    throw connectionError("LAUNCH_HTTP", { status: responseStatus(response) });
+  }
+  const html = await readBoundedText(response, MAX_LAUNCH_HTML_CHARS, "LAUNCH");
   return extractLaunchUrl(html);
 }
 
@@ -238,42 +272,51 @@ export async function validateToken(token, fetchImpl = fetch, signal) {
     wsfunction: "core_webservice_get_site_info",
     moodlewsrestformat: "json",
   });
-  const response = await fetchImpl(API_URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body,
-    credentials: "omit",
-    redirect: "error",
-    cache: "no-store",
-    signal,
-  });
-  if (!response.ok) throw new Error("Nexus API check failed");
-  const text = await readBoundedText(response, MAX_SITE_INFO_CHARS);
+  let response;
+  try {
+    response = await fetchImpl(API_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body,
+      credentials: "omit",
+      redirect: "error",
+      cache: "no-store",
+      signal,
+    });
+  } catch (error) {
+    if (error?.name === "AbortError") throw error;
+    throw connectionError("API_FETCH");
+  }
+  if (!response.ok) throw connectionError("API_HTTP", { status: responseStatus(response) });
+  const text = await readBoundedText(response, MAX_SITE_INFO_CHARS, "API");
   let info;
   try {
     info = JSON.parse(text);
   } catch {
-    throw new Error("Invalid Nexus API response");
+    throw connectionError("API_JSON");
+  }
+  if (info?.exception) throw connectionError("API_MOODLE");
+  let siteOrigin = null;
+  try {
+    siteOrigin = new URL(info?.siteurl).origin;
+  } catch {
+    // Identity validation below reports the fixed local diagnostic.
   }
   if (
     !info ||
-    info.exception ||
     !Number.isInteger(info.userid) ||
     typeof info.fullname !== "string" ||
     !Array.isArray(info.functions) ||
-    new URL(info.siteurl).origin !== SITE
+    siteOrigin !== SITE
   ) {
-    throw new Error("Nexus API access is unavailable");
+    throw connectionError("API_IDENTITY");
   }
   const availableFunctions = new Set(
     info.functions.map((item) => item?.name).filter((name) => typeof name === "string"),
   );
   const missingFunctions = REQUIRED_FUNCTIONS.filter((name) => !availableFunctions.has(name));
   if (missingFunctions.length) {
-    const error = new Error("Nexus API access is incomplete");
-    error.code = "UNSUPPORTED_API";
-    error.missingFunctions = missingFunctions;
-    throw error;
+    throw connectionError("API_FUNCTIONS", { missingFunctions });
   }
   return {
     name: info.fullname,

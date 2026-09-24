@@ -20,6 +20,39 @@ function show(message, kind = "") {
   status.focus();
 }
 
+function errorMessage(error) {
+  const messages = {
+    LOGIN_ATTEMPT: "Chrome could not start a valid Nexus login attempt.",
+    LAUNCH_FETCH: "Chrome could not retrieve the Nexus mobile-login result. A network failure and a blocked redirect look the same here.",
+    LAUNCH_HTTP: "Nexus rejected the mobile-login request.",
+    LAUNCH_SIZE: "Nexus returned an unexpectedly large mobile-login page.",
+    LAUNCH_BODY: "Chrome could not read the Nexus mobile-login page.",
+    LAUNCH_HTML: "Nexus returned an invalid mobile-login page.",
+    LAUNCH_LINK_MISSING: "Nexus did not return the mobile-app connection link. The browser login may be incomplete.",
+    LAUNCH_LINK_AMBIGUOUS: "Nexus returned more than one mobile-app connection link.",
+    PAYLOAD_SCHEME: "Nexus returned an unexpected mobile-app link type.",
+    PAYLOAD_ENCODING: "Nexus returned a malformed mobile-app credential.",
+    PAYLOAD_MISMATCH: "The Nexus credential did not match this login attempt.",
+    API_FETCH: "Chrome could not reach the Nexus API.",
+    API_HTTP: "Nexus rejected the API validation request.",
+    API_SIZE: "Nexus returned an unexpectedly large API response.",
+    API_BODY: "Chrome could not read the Nexus API response.",
+    API_JSON: "Nexus returned an invalid API response.",
+    API_MOODLE: "Nexus did not accept the mobile-app credential.",
+    API_IDENTITY: "Nexus did not return a valid Union student identity.",
+    API_FUNCTIONS: "Nexus did not grant every API required by this connector.",
+  };
+  const code = Object.hasOwn(messages, error?.code) ? error.code : "UNKNOWN";
+  let message = `${messages[code] ?? "The Nexus connection failed at an unknown stage."} [${code}]`;
+  if ((code === "LAUNCH_HTTP" || code === "API_HTTP") && error.status !== null) {
+    message += ` HTTP ${error.status}`;
+  }
+  if (code === "API_FUNCTIONS") {
+    message += `\nMissing required APIs:\n${error.missingFunctions.join("\n")}`;
+  }
+  return message;
+}
+
 function clearAttempt(target = attempt) {
   target?.controller.abort();
   if (attempt === target) attempt = null;
@@ -88,13 +121,8 @@ finish.addEventListener("click", async () => {
     if (attempt !== active) return;
     if (timedOut) {
       show("Nexus took too long to respond. Start a new connection test.", "error");
-    } else if (error?.code === "UNSUPPORTED_API") {
-      show(
-        `Connected, but Nexus did not grant the APIs required by this connector:\n${error.missingFunctions.join("\n")}`,
-        "error",
-      );
     } else if (error?.name !== "AbortError") {
-      show("Connection failed. Sign in to Nexus and start a new test.", "error");
+      show(errorMessage(error), "error");
     }
   } finally {
     clearTimeout(timeout);

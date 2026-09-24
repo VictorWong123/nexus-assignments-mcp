@@ -17,6 +17,18 @@ function launchPayload(passport, token = "a".repeat(32), site = SITE) {
   return `moodlemobile://token=${btoa(`${md5(`${site}${passport}`)}:::${token}:::discard-me`)}`;
 }
 
+function hasCode(code) {
+  return (error) => error.code === code;
+}
+
+function apiResponse(body, status = 200) {
+  return {
+    ok: status >= 200 && status < 300,
+    status,
+    text: async () => body,
+  };
+}
+
 test("MD5 matches standard vectors used by Moodle's passport check", () => {
   assert.equal(md5(""), "d41d8cd98f00b204e9800998ecf8427e");
   assert.equal(md5("abc"), "900150983cd24fb0d6963f7d28e17f72");
@@ -44,10 +56,10 @@ test("passport and launch URL are fixed to Nexus mobile login", () => {
 test("extracts one launch link and rejects missing or ambiguous responses", () => {
   const url = "moodlemobile://token=YWJjZA==";
   assert.equal(extractLaunchUrl(`<main><a href="${url}" id="launchapp">Open</a></main>`), url);
-  assert.throws(() => extractLaunchUrl("<p>Sign in</p>"), /not completed/);
+  assert.throws(() => extractLaunchUrl("<p>Sign in</p>"), hasCode("LAUNCH_LINK_MISSING"));
   assert.throws(
     () => extractLaunchUrl(`<a id="launchapp" href="${url}"></a><a href="${url}" id="launchapp"></a>`),
-    /not completed/,
+    hasCode("LAUNCH_LINK_AMBIGUOUS"),
   );
 });
 
@@ -56,11 +68,20 @@ test("accepts the matching Moodle payload and rejects wrong site or passport", (
   assert.equal(parseLaunchPayload(launchPayload(passport), passport), "a".repeat(32));
   assert.throws(
     () => parseLaunchPayload(launchPayload(passport, "a".repeat(32), "https://evil.example"), passport),
-    /did not match/,
+    hasCode("PAYLOAD_MISMATCH"),
   );
-  assert.throws(() => parseLaunchPayload(launchPayload(passport), "876543210987654321"), /did not match/);
-  assert.throws(() => parseLaunchPayload("https://example.com/token=x", passport), /Invalid/);
-  assert.throws(() => parseLaunchPayload("moodlemobile://token=%%%", passport), /Invalid/);
+  assert.throws(
+    () => parseLaunchPayload(launchPayload(passport), "876543210987654321"),
+    hasCode("PAYLOAD_MISMATCH"),
+  );
+  assert.throws(
+    () => parseLaunchPayload("https://example.com/token=x", passport),
+    hasCode("PAYLOAD_SCHEME"),
+  );
+  assert.throws(
+    () => parseLaunchPayload("moodlemobile://token=%%%", passport),
+    hasCode("PAYLOAD_ENCODING"),
+  );
 });
 
 test("fetches the launch page with the signed-in Nexus session and no redirects or cache", async () => {
@@ -96,7 +117,7 @@ test("stops reading an oversized Nexus response", async () => {
         },
       }),
     })),
-    /size limit/,
+    hasCode("LAUNCH_SIZE"),
   );
 });
 
@@ -145,19 +166,33 @@ test("reports required APIs missing from a valid student's token", async () => {
       }),
     })),
     (error) =>
-      error.code === "UNSUPPORTED_API" &&
+      error.code === "API_FUNCTIONS" &&
       error.missingFunctions.includes("mod_assign_get_assignments"),
   );
 });
 
-test("rejects malformed, failed, and cancelled API checks", async () => {
+test("reports API fetch, HTTP, JSON, Moodle, identity, and cancellation stages", async () => {
   await assert.rejects(
-    validateToken("a".repeat(32), async () => ({ ok: false })),
-    /failed/,
+    validateToken("a".repeat(32), async () => { throw new TypeError("secret"); }),
+    hasCode("API_FETCH"),
   );
   await assert.rejects(
-    validateToken("a".repeat(32), async () => ({ ok: true, text: async () => "not-json" })),
-    /Invalid/,
+    validateToken("a".repeat(32), async () => apiResponse("", 503)),
+    (error) => error.code === "API_HTTP" && error.status === 503,
+  );
+  await assert.rejects(
+    validateToken("a".repeat(32), async () => apiResponse("not-json")),
+    hasCode("API_JSON"),
+  );
+  await assert.rejects(
+    validateToken("a".repeat(32), async () =>
+      apiResponse(JSON.stringify({ exception: "moodle_exception", message: "secret" }))),
+    hasCode("API_MOODLE"),
+  );
+  await assert.rejects(
+    validateToken("a".repeat(32), async () =>
+      apiResponse(JSON.stringify({ userid: "wrong", fullname: "Student", siteurl: SITE, functions: [] }))),
+    hasCode("API_IDENTITY"),
   );
   const cancelled = new DOMException("Cancelled", "AbortError");
   await assert.rejects(validateToken("a".repeat(32), async () => { throw cancelled; }), {
