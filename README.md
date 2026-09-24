@@ -66,3 +66,17 @@ Run the focused checks after installing dependencies:
 ```sh
 python -m unittest -v test_server.py
 ```
+
+## Student login proof (not yet released)
+
+`extension/` is a developer-only Chrome proof for the first release gate: confirming that an ordinary Union student can sign in through the real Nexus/Okta page and obtain the Moodle API access needed by the existing read-only tools without copying a token. It does not connect to the hosted MCP or send a credential anywhere except Nexus.
+
+To run the local proof, open Chrome's Extensions page, enable Developer mode, choose **Load unpacked**, and select the repository's `extension` directory. Click the extension, consent, sign in to Nexus, return to the connection page, and finish the check. Remove the unpacked extension after testing.
+
+The proof may cause Nexus to reuse an existing Moodle mobile-app token or create one if none exists. It never opens the token-management page and never resets a token. Public packaging, managed authentication, credential storage, and the shared MCP deployment remain blocked until this login works for the owner and a second ordinary student account.
+
+Run its dependency-free checks with Node 20 or newer:
+
+```sh
+node --test extension/test_login.mjs
+```
