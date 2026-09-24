@@ -87,4 +87,6 @@ node --test extension/test_*.mjs
 
 `NEXUS_SHARED_MODE=1` makes the server require a request-scoped Nexus credential. In this mode it refuses `NEXUS_TOKEN` and `NEXUS_CREDENTIAL_FILE`, and a request without its own credential fails closed. Personal stdio mode is unchanged when shared mode is unset or `0`.
 
-This is an internal prerequisite for authenticated hosting, not a complete hosted setup. No OAuth provider or credential vault is wired yet; future request middleware must validate the MCP caller, retrieve only that student's vaulted Nexus token, and bind it with `_request_credentials` for the duration of one request.
+This is an internal prerequisite for authenticated hosting, not a complete hosted setup. The shared HTTP entry point validates OAuth access tokens, but no credential vault is wired yet; future request middleware must retrieve only that student's vaulted Nexus token and bind it with `_request_credentials` for the duration of one request.
+
+`shared_server:app` is the undeployed stateless HTTP entry point. It validates Descope tokens against the configured issuer and JWKS, requires the exact `https://union-nexus-mcp.vercel.app/mcp` audience and `nexus:read` scope, and refuses to start outside shared mode or with owner credentials configured. It does not yet retrieve a student's Nexus credential, so authenticated tool calls that need Nexus remain intentionally unavailable until the server-only credential contract is configured and reviewed.
