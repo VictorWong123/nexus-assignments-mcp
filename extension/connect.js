@@ -28,7 +28,7 @@ function errorMessage(error) {
     LAUNCH_SIZE: "Nexus returned an unexpectedly large mobile-login page.",
     LAUNCH_BODY: "Chrome could not read the Nexus mobile-login page.",
     LAUNCH_HTML: "Nexus returned an invalid mobile-login page.",
-    LAUNCH_LINK_MISSING: "Nexus did not return the mobile-app connection link. The browser login may be incomplete.",
+    LAUNCH_LINK_MISSING: "Nexus returned a page without the mobile-app connection link.",
     LAUNCH_LINK_AMBIGUOUS: "Nexus returned more than one mobile-app connection link.",
     PAYLOAD_SCHEME: "Nexus returned an unexpected mobile-app link type.",
     PAYLOAD_ENCODING: "Nexus returned a malformed mobile-app credential.",
@@ -38,7 +38,7 @@ function errorMessage(error) {
     API_SIZE: "Nexus returned an unexpectedly large API response.",
     API_BODY: "Chrome could not read the Nexus API response.",
     API_JSON: "Nexus returned an invalid API response.",
-    API_MOODLE: "Nexus did not accept the mobile-app credential.",
+    API_MOODLE: "Nexus returned an error during API validation.",
     API_IDENTITY: "Nexus did not return a valid Union student identity.",
     API_FUNCTIONS: "Nexus did not grant every API required by this connector.",
   };
