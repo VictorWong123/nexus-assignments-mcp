@@ -6,6 +6,8 @@ import io
 import json
 import os
 import re
+from contextlib import contextmanager
+from contextvars import ContextVar
 from datetime import datetime, timedelta, timezone
 from html.parser import HTMLParser
 from pathlib import Path
@@ -31,6 +33,9 @@ MAX_DISCUSSION_TEXT_CHARS = 200_000
 MAX_DISCUSSION_SUMMARY_CHARS = 2_000
 ALLOWED_FILE_PATHS = ("/pluginfile.php/", "/webservice/pluginfile.php/")
 READ_ONLY = {"readOnlyHint": True}
+_REQUEST_NEXUS_TOKEN: ContextVar[str | None] = ContextVar(
+    "request_nexus_token", default=None
+)
 
 
 class NexusError(RuntimeError):
@@ -75,7 +80,39 @@ def _parse_datetime(value: str, name: str) -> datetime:
     return parsed.astimezone(timezone.utc)
 
 
+def _shared_mode() -> bool:
+    value = os.environ.get("NEXUS_SHARED_MODE", "").strip()
+    if value not in {"", "0", "1"}:
+        raise NexusError("NEXUS_SHARED_MODE must be 0 or 1")
+    return value == "1"
+
+
+@contextmanager
+def _request_credentials(token: str):
+    """Bind one student's Nexus token to the current shared-mode request."""
+    if not _shared_mode():
+        raise NexusError("Request credentials require shared mode")
+    token = token.strip()
+    if not re.fullmatch(r"[A-Za-z0-9]{16,128}", token):
+        raise NexusError("Invalid Nexus request credential")
+    marker = _REQUEST_NEXUS_TOKEN.set(token)
+    try:
+        yield
+    finally:
+        _REQUEST_NEXUS_TOKEN.reset(marker)
+
+
 def _credentials() -> tuple[str, str]:
+    if _shared_mode():
+        if os.environ.get("NEXUS_TOKEN", "").strip() or os.environ.get(
+            "NEXUS_CREDENTIAL_FILE", ""
+        ).strip():
+            raise NexusError("Shared mode refuses owner credentials")
+        token = _REQUEST_NEXUS_TOKEN.get()
+        if not token:
+            raise NexusError("No Nexus credential for this request")
+        return SITE, token
+
     token = os.environ.get("NEXUS_TOKEN", "").strip()
     if token:
         return SITE, token

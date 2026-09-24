@@ -53,7 +53,7 @@ Configure Codex to start `python /absolute/path/to/server.py` as a stdio MCP ser
 
 ## Use with ChatGPT
 
-ChatGPT needs a remotely reachable MCP endpoint. Use a managed MCP host that can import the exported `server:mcp` object, store `NEXUS_TOKEN` as a secret, and require authentication before exposing the endpoint. Follow that host's FastMCP 3.2 deployment instructions. Do not publish `python server.py` directly; its default transport is local stdio and this project does not add public HTTP authentication.
+ChatGPT needs a remotely reachable MCP endpoint. A host configured with `NEXUS_TOKEN` is private and single-account only; never share that endpoint with another student. A multi-user deployment must set `NEXUS_SHARED_MODE=1`, configure neither `NEXUS_TOKEN` nor `NEXUS_CREDENTIAL_FILE`, and add authenticated middleware that supplies the correct request-scoped credential. This repository does not include that hosted authentication yet. Do not publish `python server.py` directly; its default transport is local stdio.
 
 ## Safety and limits
 
@@ -71,12 +71,20 @@ python -m unittest -v test_server.py
 
 `extension/` is a developer-only Chrome proof for the first release gate: confirming that an ordinary Union student can sign in through the real Nexus/Okta page and obtain the Moodle API access needed by the existing read-only tools without copying a token. It does not connect to the hosted MCP or send a credential anywhere except Nexus.
 
+The owner-account live proof passed on September 23, 2026: Nexus/Okta login completed, the returned credential matched the one-time passport, the fixed Nexus API returned the authenticated student identity, and all 12 functions required by the 11 tools were available (453 functions total). This proves the login handoff for one account only. Cross-account isolation has synthetic concurrency coverage; a second live student account remains a public-release verification gate.
+
 To run the local proof, open Chrome's Extensions page, enable Developer mode, choose **Load unpacked**, and select the repository's `extension` directory. Click the extension, consent, sign in to Nexus, return to the connection page, and finish the check. Remove the unpacked extension after testing.
 
-The proof may cause Nexus to reuse an existing Moodle mobile-app token or create one if none exists. It never opens the token-management page and never resets a token. Public packaging, managed authentication, credential storage, and the shared MCP deployment remain blocked until this login works for the owner and a second ordinary student account.
+The proof may cause Nexus to reuse an existing Moodle mobile-app token or create one if none exists. It never opens the token-management page and never resets a token. Multi-user development can proceed, but public packaging remains blocked until a second ordinary student verifies the complete flow.
 
 Run its dependency-free checks with Node 20 or newer:
 
 ```sh
 node --test extension/test_*.mjs
 ```
+
+## Shared-mode credential seam
+
+`NEXUS_SHARED_MODE=1` makes the server require a request-scoped Nexus credential. In this mode it refuses `NEXUS_TOKEN` and `NEXUS_CREDENTIAL_FILE`, and a request without its own credential fails closed. Personal stdio mode is unchanged when shared mode is unset or `0`.
+
+This is an internal prerequisite for authenticated hosting, not a complete hosted setup. No OAuth provider or credential vault is wired yet; future request middleware must validate the MCP caller, retrieve only that student's vaulted Nexus token, and bind it with `_request_credentials` for the duration of one request.
