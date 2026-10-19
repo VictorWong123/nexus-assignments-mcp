@@ -10,3 +10,7 @@ extension/
 test_*.py
 README.md
 RELEASE.md
+bin/
+nexus_login.py
+requirements-login.txt
+package.json
