@@ -1,5 +1,27 @@
 # Release record
 
+## Current distribution and verification status
+
+- Student setup: install the npm launcher from the `feature/browser-sign-in` GitHub branch and run `nexus-mcp login`. Follow the [installation guide](README.md#1-install).
+- Package: `nexus-assignments-mcp` version `0.1.0`, executable `nexus-mcp`. It is private/unpublished; there is no npm-registry install by package name.
+- Login: Union Nexus/Okta browser sign-in, including MFA, with the resulting Nexus credential stored locally. Manual token entry is optional legacy configuration.
+- Hosted ChatGPT enrollment and per-user Nexus credential retrieval remain unfinished. The desktop login does not connect a student to the shared hosted server.
+
+### Installation guide checked November 20, 2026
+
+The documented GitHub npm install completed in a temporary global prefix, and the installed `nexus-mcp --help` command succeeded. Documentation links, JSON examples, and launcher settings were checked against source. This check did not install the launcher's Python dependencies or perform a live Union login.
+
+### Desktop launcher checks recorded October 19, 2026
+
+- An npm tarball installed into a clean prefix. The launcher installed its Python dependencies and completed MCP initialization and discovery of all 11 tools using a synthetic credential. No student data was requested.
+- Headless Chromium exercised intercepted synthetic Nexus → Okta → Nexus fixtures, including the auto-clicking confirmation page, branded callback parsing, mismatched-passport rejection, ambiguous-link rejection, and browser cleanup.
+- Python checks covered tools, saved credentials, required API permissions, and shared-server isolation. Extension checks remained intact.
+- A live Union sign-in through the desktop launcher and a second ordinary student's account remain unverified. The owner-account live proof below used the separate Chrome extension, not this launcher.
+
+### Chrome extension proof recorded September 23, 2026
+
+The owner-account Nexus/Okta login completed, the credential matched the one-time passport, the Nexus API returned the authenticated student identity, and all 12 functions required by the 11 tools were available (453 functions total). This verifies one account's extension handoff only. Cross-account isolation has synthetic concurrency coverage; a second live student account remains a public-release verification gate. See [extension instructions](extension/README.md).
+
 ## 2026-09-23 — shared authentication boundary
 
 - Source commit: `d54f5af`
