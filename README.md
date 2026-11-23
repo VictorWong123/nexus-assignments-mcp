@@ -4,31 +4,31 @@ Connect a local desktop MCP client to your Union Nexus account. Ask about your c
 
 **Start here:** run the two commands for your client below and sign in through Union's normal Nexus/Okta page with your Union email/account and MFA. Enter your password only in the Union browser login window.
 
-This is a local desktop preview. The npm release is being prepared; the commands below work directly from GitHub. Live Union login through this launcher is still awaiting verification; see [release status](RELEASE.md).
+This is a local desktop preview, available as `nexus-assignments-mcp` on npm. Live Union login through this launcher is still awaiting verification; see [release status](RELEASE.md).
 
 ## Quick start
 
-You need Node.js 18+ (with npm/npx), Git, Python 3.10+ with venv/pip, and a desktop session with Chrome or Edge. Install your chosen client first.
+You need Node.js 18+ (with npm/npx), Python 3.10+ with venv/pip, and a desktop session with Chrome or Edge. Install your chosen client first.
 
 Run the two commands for **your client** in a terminal. The first downloads the launcher and opens Union's browser login; complete sign-in and MFA before running the second. No global npm install is needed.
 
 ### Codex
 
 ```sh
-npx --yes --package "git+https://github.com/VictorWong123/nexus-assignments-mcp.git#feature/browser-sign-in" nexus-mcp login
-codex mcp add nexus -- npx --yes --package "git+https://github.com/VictorWong123/nexus-assignments-mcp.git#feature/browser-sign-in" nexus-mcp
+npx --yes nexus-assignments-mcp@latest login
+codex mcp add nexus -- npx --yes nexus-assignments-mcp@latest
 ```
 
 ### Claude Code
 
 ```sh
-npx --yes --package "git+https://github.com/VictorWong123/nexus-assignments-mcp.git#feature/browser-sign-in" nexus-mcp login
-claude mcp add --scope user nexus -- npx --yes --package "git+https://github.com/VictorWong123/nexus-assignments-mcp.git#feature/browser-sign-in" nexus-mcp
+npx --yes nexus-assignments-mcp@latest login
+claude mcp add --scope user nexus -- npx --yes nexus-assignments-mcp@latest
 ```
 
 Restart or reconnect your client, then ask: **List my Nexus courses.**
 
-If no browser opens, run `npx --yes --package "git+https://github.com/VictorWong123/nexus-assignments-mcp.git#feature/browser-sign-in" nexus-mcp install-browser`, then retry the login command.
+If no browser opens, run `npx --yes nexus-assignments-mcp@latest install-browser`, then retry the login command.
 
 To sign in again with this setup, rerun the first command. For a global install or another desktop client, follow the steps below.
 
@@ -37,7 +37,6 @@ To sign in again with this setup, rerun the first command. For a global install 
 You need:
 
 - Node.js 18 or newer with npm.
-- Git.
 - Python 3.10 or newer with `venv` and pip support, available as `python3` or `python`.
 - A desktop session and Chrome or Edge, or the Chromium install below.
 - Your own Union account with Nexus access and an internet connection.
@@ -45,7 +44,7 @@ You need:
 Run in a terminal:
 
 ```sh
-npm install -g "git+https://github.com/VictorWong123/nexus-assignments-mcp.git#feature/browser-sign-in"
+npm install -g nexus-assignments-mcp@latest
 nexus-mcp --help
 ```
 
