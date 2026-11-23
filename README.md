@@ -2,61 +2,43 @@
 
 Connect a local desktop MCP client to your Union Nexus account. Ask about your courses, assignments, deadlines, grades, discussions, quizzes, and course attachments. All 11 tools are read-only.
 
-**Start here:** install the npm launcher from GitHub, run `nexus-mcp login`, and sign in through Union's normal Nexus/Okta page with your Union email/account and MFA. Enter your password only in the Union browser login window.
+**Start here:** run the two commands for your client below and sign in through Union's normal Nexus/Okta page with your Union email/account and MFA. Enter your password only in the Union browser login window.
 
-This is a local desktop preview, installed from GitHub rather than the npm registry. Live Union login through this launcher is still awaiting verification; see [release status](RELEASE.md).
+This is a local desktop preview. The npm release is being prepared; the commands below work directly from GitHub. Live Union login through this launcher is still awaiting verification; see [release status](RELEASE.md).
 
-## Copy and paste into your coding assistant
+## Quick start
 
-Copy the entire prompt below into **Claude Code or Codex running on your computer** to have it install and configure Nexus MCP for you. You will still complete Union sign-in and MFA yourself in the browser. The assistant needs local terminal access and permission to install software; a web chat without those capabilities can guide you through the manual steps instead. This does not enable the unfinished hosted ChatGPT connector.
+You need Node.js 18+ (with npm/npx), Git, Python 3.10+ with venv/pip, and a desktop session with Chrome or Edge. Install your chosen client first.
 
-```text
-Set up Union Nexus MCP on this computer for the MCP client I am using.
-Follow the installation guide at:
-https://github.com/VictorWong123/nexus-assignments-mcp/blob/main/README.md
+Run the two commands for **your client** in a terminal. The first downloads the launcher and opens Union's browser login; complete sign-in and MFA before running the second. No global npm install is needed.
 
-Do the installation and configuration, rather than only explaining the steps:
+### Codex
 
-1. Check for Node.js 18+, npm, Git, Python 3.10+ with venv/pip, and a local
-   desktop session. If a prerequisite is missing, explain what I need to
-   install. If you cannot run commands on my computer, say so before proceeding.
-2. Install the unpublished launcher from its browser-login branch:
-   npm install -g "git+https://github.com/VictorWong123/nexus-assignments-mcp.git#feature/browser-sign-in"
-   Check that nexus-mcp --help works. Do not install by npm package name alone.
-3. Run nexus-mcp login and let me complete Union email/account sign-in and MFA
-   in the browser. Wait for the terminal's successful connection message.
-   If Chrome and Edge are unavailable, run nexus-mcp install-browser and retry.
-   Never ask me to paste a password, MFA code, token, or credential file into
-   chat, and do not read or print the saved credential file.
-4. Configure the client I am using, preserving other MCP servers and settings.
-   For Codex CLI: codex mcp add nexus -- nexus-mcp
-   For Claude Code: claude mcp add --scope user nexus -- nexus-mcp
-   Check the installed CLI's help before changing settings. If the client is
-   unclear, ask me which client to configure. Do not configure both by default.
-   For another local desktop client, use its supported stdio configuration
-   with command nexus-mcp and no arguments. Use the executable's absolute path
-   if the app cannot find it. If a Nexus entry already exists, update only that
-   entry's settings as needed; preserve unrelated credentials.
-5. Tell me if I must restart or reconnect the client. Once Nexus tools are
-   available, call list_courses to check the connection. If this session cannot
-   load the newly added server, give me the exact next step and the prompt
-   "List my Nexus courses" to run after reconnecting. Do not claim the tools
-   work until a tool call succeeds.
-
-Keep setup local. Do not deploy a hosted server, use the hosted MCP URL, or
-submit or change any coursework. Summarize what you installed, which client
-you configured, and what you verified or still need me to do.
+```sh
+npx --yes --package "git+https://github.com/VictorWong123/nexus-assignments-mcp.git#feature/browser-sign-in" nexus-mcp login
+codex mcp add nexus -- npx --yes --package "git+https://github.com/VictorWong123/nexus-assignments-mcp.git#feature/browser-sign-in" nexus-mcp
 ```
 
-Prefer doing it yourself? Follow the same manual steps below.
+### Claude Code
+
+```sh
+npx --yes --package "git+https://github.com/VictorWong123/nexus-assignments-mcp.git#feature/browser-sign-in" nexus-mcp login
+claude mcp add --scope user nexus -- npx --yes --package "git+https://github.com/VictorWong123/nexus-assignments-mcp.git#feature/browser-sign-in" nexus-mcp
+```
+
+Restart or reconnect your client, then ask: **List my Nexus courses.**
+
+If no browser opens, run `npx --yes --package "git+https://github.com/VictorWong123/nexus-assignments-mcp.git#feature/browser-sign-in" nexus-mcp install-browser`, then retry the login command.
+
+To sign in again with this setup, rerun the first command. For a global install or another desktop client, follow the steps below.
 
 ## 1. Install
 
 You need:
 
 - Node.js 18 or newer with npm.
+- Git.
 - Python 3.10 or newer with `venv` and pip support, available as `python3` or `python`.
-- Git for the GitHub install.
 - A desktop session and Chrome or Edge, or the Chromium install below.
 - Your own Union account with Nexus access and an internet connection.
 
@@ -66,8 +48,6 @@ Run in a terminal:
 npm install -g "git+https://github.com/VictorWong123/nexus-assignments-mcp.git#feature/browser-sign-in"
 nexus-mcp --help
 ```
-
-Do not use `npm install -g nexus-assignments-mcp`: there is no published registry release. If GitHub requests authentication, you need access to the repository.
 
 ## 2. Sign in with your Union account
 
