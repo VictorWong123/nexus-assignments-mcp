@@ -1,6 +1,8 @@
+import asyncio
 import json
 import os
 import unittest
+from urllib.parse import parse_qs
 from unittest.mock import patch
 
 import server
@@ -12,6 +14,8 @@ from server import (
     _bounded_posts,
     _content,
     _courses,
+    _credentials,
+    _request_credentials,
 )
 
 
@@ -126,6 +130,60 @@ class NexusServerTest(unittest.TestCase):
             self.client(json.dumps(payload).encode()).call("example")
         self.assertNotIn("top-secret-token", str(raised.exception))
         self.assertIn("[REDACTED]", str(raised.exception))
+
+    def test_shared_mode_never_falls_back_to_owner_credentials(self):
+        for owner_credentials in (
+            {"NEXUS_TOKEN": "owner-token-must-not-be-used"},
+            {"NEXUS_CREDENTIAL_FILE": "/owner/credentials.json"},
+        ):
+            with self.subTest(owner_credentials=tuple(owner_credentials)):
+                with patch.dict(
+                    os.environ,
+                    {"NEXUS_SHARED_MODE": "1", **owner_credentials},
+                    clear=True,
+                ):
+                    with _request_credentials("a" * 32):
+                        with self.assertRaisesRegex(NexusError, "refuses owner"):
+                            _credentials()
+
+        with patch.dict(os.environ, {"NEXUS_SHARED_MODE": "1"}, clear=True):
+            with self.assertRaisesRegex(NexusError, "for this request"):
+                _credentials()
+
+    def test_shared_mode_isolates_two_concurrent_accounts(self):
+        async def exercise():
+            release = asyncio.Event()
+            entered = 0
+
+            async def account(token):
+                nonlocal entered
+                opener = _Opener(_Response(b"{}"))
+                with _request_credentials(token):
+                    entered += 1
+                    if entered == 2:
+                        release.set()
+                    await release.wait()
+
+                    def call_from_worker_thread():
+                        client = MoodleClient(opener)
+                        client.call("core_webservice_get_site_info")
+                        sent = parse_qs(opener.request.data.decode())
+                        return client.token, sent["wstoken"][0]
+
+                    return await asyncio.to_thread(call_from_worker_thread)
+
+            return await asyncio.gather(
+                account("a" * 32),
+                account("b" * 32),
+            )
+
+        with patch.dict(os.environ, {"NEXUS_SHARED_MODE": "1"}, clear=True):
+            self.assertEqual(
+                asyncio.run(exercise()),
+                [("a" * 32, "a" * 32), ("b" * 32, "b" * 32)],
+            )
+            with self.assertRaisesRegex(NexusError, "for this request"):
+                _credentials()
 
     def test_course_grades_preserves_zero_scale_and_visibility_states(self):
         client = _FakeClient(

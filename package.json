@@ -1,0 +1,26 @@
+{
+  "name": "nexus-assignments-mcp",
+  "version": "0.1.0",
+  "description": "Read-only Union Nexus MCP with browser-assisted sign-in",
+  "type": "module",
+  "bin": {
+    "nexus-mcp": "bin/nexus-mcp.js"
+  },
+  "files": [
+    "bin/",
+    "server.py",
+    "nexus_login.py",
+    "requirements.txt",
+    "requirements-login.txt",
+    "README.md",
+    "RELEASE.md"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/VictorWong123/nexus-assignments-mcp.git"
+  },
+  "homepage": "https://github.com/VictorWong123/nexus-assignments-mcp#readme"
+}

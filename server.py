@@ -6,6 +6,8 @@ import io
 import json
 import os
 import re
+from contextlib import contextmanager
+from contextvars import ContextVar
 from datetime import datetime, timedelta, timezone
 from html.parser import HTMLParser
 from pathlib import Path
@@ -31,6 +33,9 @@ MAX_DISCUSSION_TEXT_CHARS = 200_000
 MAX_DISCUSSION_SUMMARY_CHARS = 2_000
 ALLOWED_FILE_PATHS = ("/pluginfile.php/", "/webservice/pluginfile.php/")
 READ_ONLY = {"readOnlyHint": True}
+_REQUEST_NEXUS_TOKEN: ContextVar[str | None] = ContextVar(
+    "request_nexus_token", default=None
+)
 
 
 class NexusError(RuntimeError):
@@ -75,26 +80,62 @@ def _parse_datetime(value: str, name: str) -> datetime:
     return parsed.astimezone(timezone.utc)
 
 
+def _shared_mode() -> bool:
+    value = os.environ.get("NEXUS_SHARED_MODE", "").strip()
+    if value not in {"", "0", "1"}:
+        raise NexusError("NEXUS_SHARED_MODE must be 0 or 1")
+    return value == "1"
+
+
+@contextmanager
+def _request_credentials(token: str):
+    """Bind one student's Nexus token to the current shared-mode request."""
+    if not _shared_mode():
+        raise NexusError("Request credentials require shared mode")
+    token = token.strip()
+    if not re.fullmatch(r"[A-Za-z0-9]{16,128}", token):
+        raise NexusError("Invalid Nexus request credential")
+    marker = _REQUEST_NEXUS_TOKEN.set(token)
+    try:
+        yield
+    finally:
+        _REQUEST_NEXUS_TOKEN.reset(marker)
+
+
 def _credentials() -> tuple[str, str]:
+    if _shared_mode():
+        if os.environ.get("NEXUS_TOKEN", "").strip() or os.environ.get(
+            "NEXUS_CREDENTIAL_FILE", ""
+        ).strip():
+            raise NexusError("Shared mode refuses owner credentials")
+        token = _REQUEST_NEXUS_TOKEN.get()
+        if not token:
+            raise NexusError("No Nexus credential for this request")
+        return SITE, token
+
     token = os.environ.get("NEXUS_TOKEN", "").strip()
     if token:
         return SITE, token
 
-    credential_file = os.environ.get("NEXUS_CREDENTIAL_FILE", "").strip()
-    if not credential_file:
-        raise NexusError("Set NEXUS_TOKEN or NEXUS_CREDENTIAL_FILE")
+    from nexus_login import credential_path
+
+    credential_file = credential_path()
+    if not credential_file.exists():
+        raise NexusError("Sign in with nexus-mcp login or python nexus_login.py")
 
     try:
         data = json.loads(Path(credential_file).expanduser().read_text())
     except (OSError, json.JSONDecodeError):
         raise NexusError("Could not read Nexus credential file") from None
 
+    if not isinstance(data, dict) or not isinstance(data.get("site", SITE), str):
+        raise NexusError("Invalid Nexus credential file")
     if data.get("site", SITE).rstrip("/") != SITE:
         raise NexusError(f"Credential file site must be {SITE}")
-    token = str(data.get("token", "")).strip()
-    if not token:
+    token = data.get("token", "")
+    if not isinstance(token, str) or not token.strip():
         raise NexusError("Nexus credential file has no token")
-    return SITE, token
+    return SITE, token.strip()
 
 
 def _redact(value: str, token: str) -> str:
@@ -128,8 +169,8 @@ def _clean_url(value: str) -> str:
 
 
 class MoodleClient:
-    def __init__(self, opener=None) -> None:  # noqa: ANN001
-        self.site, self.token = _credentials()
+    def __init__(self, opener=None, *, token: str | None = None) -> None:  # noqa: ANN001
+        self.site, self.token = (SITE, token) if token else _credentials()
         self.opener = opener or build_opener(_NoRedirects())
 
     def call(self, function: str, **params: Any) -> Any:
@@ -848,4 +889,14 @@ def list_quizzes(course_id: int) -> dict[str, Any]:
 
 
 if __name__ == "__main__":
+    from nexus_login import LoginError, credential_path, login
+
+    if not _shared_mode() and not os.environ.get("NEXUS_TOKEN", "").strip() and not credential_path().exists():
+        try:
+            login()
+        except (LoginError, OSError) as error:
+            import sys
+
+            print(str(error) if isinstance(error, LoginError) else "Could not save Nexus sign-in", file=sys.stderr)
+            raise SystemExit(1) from None
     mcp.run()
