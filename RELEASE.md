@@ -2,7 +2,7 @@
 
 Union Nexus MCP is a local desktop preview with browser login through Union Nexus/Okta, including MFA. Install it using the [README](README.md).
 
-- The npm launcher is available from the `feature/browser-sign-in` GitHub branch. It is not published to the npm registry.
+- The npm launcher is `nexus-assignments-mcp`, version `0.1.0`. The executable is `nexus-mcp`.
 - Each user signs in with their own Union account. The resulting credential is saved on their computer.
 - The connector exposes 11 read-only tools for courses, assignments, deadlines, grades, discussions, quizzes, and attachments.
 - Hosted ChatGPT account enrollment is not available yet.
